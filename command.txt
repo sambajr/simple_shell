@@ -1,0 +1,3 @@
+code /bin/ls
+/bin/echo Hello, world!
+
