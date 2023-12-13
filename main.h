@@ -20,7 +20,7 @@ void parse_input(char *input, char *args[]);
 
 /*Function to check and handle the exit command*/
 void check_exit_command(char *args[]);
-void interactive_mode(void);
+void interactive_mode(int isatty_flag);
 void non_interactive_mode(const char *script);
 void check_env_command(char *args[]);
 

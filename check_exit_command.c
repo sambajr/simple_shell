@@ -19,14 +19,11 @@ void check_exit_command(char *args[])
 		{
 			int exit_code = atoi(args[1]);
 
-			free(args[0]);
+			free(args[1]);
 			exit(exit_code);
 		}
-		else
-		{
-			free(args[0]);
-			printf("BYE USER !!\n");
-			exit(0);
-		}
+		free(args[0]);
+		exit(0);
+		
 	}
 }
