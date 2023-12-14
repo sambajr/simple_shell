@@ -1,70 +1,112 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <string.h>
 #include <sys/wait.h>
-#include <string.h> /* Include string.h for strchr function */
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
-#define MAXARGS 64
+char *find_in_path(char *command) {
+    struct stat st;
+    char *path = getenv("PATH");
+    char *path_copy;
+    char *p;
+    char *fullpath = malloc(1024);
 
-/* Function to split the command line into arguments */
-char **split_line(char *line) {
-    char **args = malloc(MAXARGS * sizeof(char *));
-    char *arg;
-    int i = 0;
-
-    arg = line;
-    while (arg != NULL) {
-        args[i] = arg;
-        arg = strchr(arg, ' ');
-        if (arg != NULL) {
-            *arg = '\0';
-            arg++;
+    /* If command starts with '/', it's an absolute path */
+    if (command[0] == '/') {
+        if (stat(command, &st) == 0 && st.st_mode & S_IXUSR) {
+            return strdup(command);
+        } else {
+            return NULL;
         }
-        i++;
     }
-    args[i] = NULL;
-    return args;
+
+    /* Otherwise, search for the command in the PATH */
+    path_copy = strdup(path);
+    p = strtok(path_copy, ":");
+
+    while (p != NULL) {
+        sprintf(fullpath, "%s/%s", p, command);
+        if (stat(fullpath, &st) == 0 && st.st_mode & S_IXUSR) {
+            free(path_copy);
+            return fullpath;
+        }
+        p = strtok(NULL, ":");
+    }
+
+    free(path_copy);
+    free(fullpath);
+    return NULL;
 }
 
-int main() {
+
+
+char **split_line(char *line) {
+    char **tokens = malloc(64 * sizeof(char *));
+    char *token;
+    int position = 0;
+
+    token = strtok(line, " ");
+    while (token != NULL) {
+        tokens[position] = token;
+        position++;
+        token = strtok(NULL, " ");
+    }
+    tokens[position] = NULL;
+    return tokens;
+}
+
+int main(void) {
     char *line = NULL;
     size_t len = 0;
     ssize_t read;
-    char **argv;
+    char **args;
+    char *command;
     pid_t pid;
     int status;
 
     while (1) {
         printf("$ ");
+        fflush(stdout);
         read = getline(&line, &len, stdin);
-        if (read == -1) { /* Handling EOF */
+
+        if (read == -1) {
             printf("\n");
+            free(line);
             exit(EXIT_SUCCESS);
         }
-        line[read - 1] = '\0'; /* Remove newline at the end */
 
-        argv = split_line(line);
+        line[read - 1] = '\0';
+        args = split_line(line);
+        command = find_in_path(args[0]);
 
-        if ((pid = fork()) == -1) {
-            perror("Error:");
+        if (command == NULL) {
+            fprintf(stderr, "Error: Command '%s' not found in PATH\n", args[0]);
+            free(args);
             continue;
         }
+
+        pid = fork();
         if (pid == 0) {
-            if (execve(argv[0], argv, NULL) == -1) {
+            if (execve(command, args, NULL) == -1) {
                 perror("Error:");
             }
             exit(EXIT_FAILURE);
+        } else if (pid < 0) {
+            perror("Error:");
         } else {
             do {
                 waitpid(pid, &status, WUNTRACED);
             } while (!WIFEXITED(status) && !WIFSIGNALED(status));
         }
-        free(argv);
+
+        free(args);
+        free(command);
     }
+
     free(line);
     return EXIT_SUCCESS;
 }
-
-
-
 
