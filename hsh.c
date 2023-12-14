@@ -77,10 +77,12 @@ char **split_line(char *line)
 
 /**
  * main - main function for the shell
+ * @argc: argument count
+ * @argv: argument vector
  *
  * Return: 0 on success
  */
-int main(void)
+int main(int argc, char **argv)
 {
 	char *line = NULL;
 	size_t len = 0;
@@ -90,15 +92,23 @@ int main(void)
 	pid_t pid;
 	int status;
 	int i;
+	int line_number = 0;
+	/*char line_str[12];*/
+
+	(void)argc;
+
 
 	while (1)
 	{
-		write(1, "$ ", 2);
+		if (isatty(STDIN_FILENO))
+			write(1, "$ ", 2);
 		read = getline(&line, &len, stdin);
+		line_number++;
 
 		if (read == -1)
 		{
-			write(1, "\n", 1);
+			if (isatty(STDIN_FILENO))
+				write(1, "\n", 1);
 			free(line);
 			exit(EXIT_SUCCESS);
 		}
@@ -128,25 +138,24 @@ int main(void)
 
 		if (command == NULL)
 		{
-			write(2, "Error: Command '", 16);
-			write(2, args[0], strlen(args[0]));
-			write(2, "' not found in PATH\n", 19);
+			write(2, argv[0], strlen(argv[0]));
+			write(2, ": No such file or directory\n", 40);
 			free(args);
 			continue;
 		}
-
 		pid = fork();
 		if (pid == 0)
 		{
 			if (execve(command, args, NULL) == -1)
 			{
-				perror("Error:");
+				/*Error message won't be displayed*/
+				return (1);
 			}
 			exit(EXIT_FAILURE);
 		}
 		else if (pid < 0)
 		{
-			perror("Error:");
+			perror("ERROR:\n");
 		}
 		else
 		{
@@ -159,4 +168,6 @@ int main(void)
 	}
 	free(line);
 	return (0);
+
+
 }
