@@ -19,11 +19,15 @@ char *find_in_path(char *command)
 {
 	struct stat st;
 	char *path = getenv("PATH");
-	char *path_copy;
+	char *path_copy = strdup(path);
 	char *p;
 	char *fullpath = malloc(1024);
 
     /* If command starts with '/', it's an absolute path */
+	if (command == NULL)
+	{
+		return (NULL);
+	}
 	if (command[0] == '/')
 	{
 		if (stat(command, &st) == 0 && st.st_mode & S_IXUSR)
@@ -33,7 +37,7 @@ char *find_in_path(char *command)
 	}
 
     /* Otherwise, search for the command in the PATH */
-	path_copy = strdup(path);
+
 	p = strtok(path_copy, ":");
 
 	while (p != NULL)
@@ -93,6 +97,9 @@ int main(int argc, char **argv)
 	int status;
 	int i;
 	int line_number = 0;
+	int contains_non_whitespace = 0;
+	size_t j;
+
 	/*char line_str[12];*/
 
 	(void)argc;
@@ -108,38 +115,56 @@ int main(int argc, char **argv)
 		if (read == -1)
 		{
 			if (isatty(STDIN_FILENO))
-				write(1, "\n", 1);
+				fprintf(stderr, "\n");
 			free(line);
 			exit(EXIT_SUCCESS);
 		}
 
-		line[read - 1] = '\0';
+/* Trim leading and trailing whitespaces */
+		while (read > 0 && (line[read - 1] == '\n' || line[read - 1] == ' ' || line[read - 1] == '\t'))
+		{
+			line[--read] = '\0';
+		}
+
+/* If the line contains only whitespace characters or is empty, prompt again */
+
+		for (j = 0; j < (size_t)read; j++)
+		{
+			if (line[j] != ' ' && line[j] != '\t')
+			{
+				contains_non_whitespace = 1;
+				break;
+			}
+		}
+
+		if (!contains_non_whitespace)
+		{
+			continue;
+		}
+
 		args = split_line(line);
+
 		/* Check exit */
-		if (strcmp(args[0], "exit") == 0)
+		if (args[0] != NULL && strcmp(args[0], "exit") == 0)
 		{
 			free(args);
-			free(line);
-			exit(EXIT_SUCCESS);
+			break;
 		}
-		/* Check env */
-		if (strcmp(args[0], "env") == 0)
+			/* Check env */
+		if (args[0] != NULL && strcmp(args[0], "env") == 0)
 		{
 			for (i = 0; environ[i]; i++)
 			{
-				write(1, environ[i], strlen(environ[i]));
-				write(1, "\n", 1);
+				fprintf(stdout, "%s\n", environ[i]);
 			}
 			free(args);
 			continue;
 		}
-
 		command = find_in_path(args[0]);
 
 		if (command == NULL)
 		{
-			write(2, argv[0], strlen(argv[0]));
-			write(2, ": No such file or directory\n", 40);
+			fprintf(stderr, "%s: No such file or directory\n", argv[0]);
 			free(args);
 			continue;
 		}
@@ -149,7 +174,7 @@ int main(int argc, char **argv)
 			if (execve(command, args, NULL) == -1)
 			{
 				/*Error message won't be displayed*/
-				return (1);
+				exit(EXIT_FAILURE);
 			}
 			exit(EXIT_FAILURE);
 		}
